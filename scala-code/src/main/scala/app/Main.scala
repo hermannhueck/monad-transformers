@@ -157,7 +157,7 @@ object Main extends App {
   val got = otli.getOrElse(42)
   println(got)
 
-  println("\n----- For comprehension with List[Option[Int]]")
+  println("\n----- For comprehension with OptionT[List, Int] encapsulating List[Option[Int]]")
 
   val result4: OptionT[List, Int] = for {
     x <- otli
