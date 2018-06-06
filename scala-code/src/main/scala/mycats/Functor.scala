@@ -61,6 +61,10 @@ object Functor {
     override def map[A, B](fa: Future[A])(f: A => B): Future[B] = fa.map(f)
   }
 
+  implicit def idFunctor: Functor[Id] = new Functor[Id] {
+    override def map[A, B](fa: Id[A])(f: A => B): Id[B] = f(fa)
+  }
+
   implicit def eitherFunctor[L]: Functor[Either[L, ?]] = new Functor[Either[L, ?]] {
     override def map[R1, R2](fa: Either[L, R1])(f: R1 => R2): Either[L, R2] = fa map f
   }

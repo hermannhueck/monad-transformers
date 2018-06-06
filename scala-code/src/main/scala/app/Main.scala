@@ -1,7 +1,9 @@
-import cats._
-import cats.data._
-import cats.implicits._
-//import categories._, transformers._, Functor.syntax._
+package app
+
+import scala.language.higherKinds
+
+//import cats._, cats.data._, cats.implicits._
+import mycats._, transform._, Functor.syntax._, Monad.syntax._
 
 object Main extends App {
 
@@ -155,7 +157,7 @@ object Main extends App {
   val got = otli.getOrElse(42)
   println(got)
 
-  println("\n----- for comprehension with List[Option[Int]]")
+  println("\n----- For comprehension with List[Option[Int]]")
 
   val result4: OptionT[List, Int] = for {
     x <- otli
@@ -164,6 +166,51 @@ object Main extends App {
 
   println(result4)
   println(result4.value)
+
+  println("\n----- Generic Processing of Monads")
+
+  def processIntMonads[F[_]: Monad](monad1: F[Int], monad2: F[Int]): F[Int] =
+    for {
+      x <- monad1
+      y <- monad2
+    } yield x * y
+
+  val result5 = processIntMonads(otli, otli)
+  println(result5.value)
+
+  println("\n----- Using monads List, Vector, Option, Future")
+
+  println(processIntMonads(List(1, 2, 3), List(10, 20, 30)))
+  println(processIntMonads(Vector(1, 2, 3), Vector(10, 20, 30)))
+  println(processIntMonads(Option(5), Option(5)))
+
+  import scala.concurrent.{Await, Future}
+  import scala.concurrent.duration._
+  import scala.concurrent.ExecutionContext.Implicits.global
+
+  val fi = processIntMonads(Future(5), Future(5))
+  Await.ready(fi, 1.second)
+  println(fi)
+
+  println("\n----- Using OptionT[Vector, Int], OptionT[Option, Int], OptionT[Future, Int]")
+
+  val otvi = OptionT[Vector, Int](Vector(Option(3), Option(5)))
+  println(processIntMonads(otvi, otvi).value)
+
+  val otoi = OptionT[Option, Int](Option(Option(5)))
+  println(processIntMonads(otoi, otoi).value)
+
+  val otfi = processIntMonads(OptionT(Future(Option(5))), OptionT(Future(Option(5))))
+  Await.ready(otfi.value, 1.second)
+  println(otfi.value)
+
+  println("\n----- Using the Id monad and OptionT[Id, Int]")
+
+  val ii = processIntMonads(5: Id[Int], 5: Id[Int])
+  println(ii)
+
+  val otii = processIntMonads(OptionT[Id, Int](Option(5)), OptionT[Id, Int](Option(5)))
+  println(otii.value)
 
   println("-----\n")
 }

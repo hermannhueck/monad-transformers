@@ -9,10 +9,11 @@ final case class OptionT[F[_], A](value: F[Option[A]]) {
   def map[B](f: A => B)(implicit F: Functor[F]): OptionT[F, B] =
     OptionT(F.map(value)(_ map f))
 
-  def flatMap[B](f: A => OptionT[F, B])(implicit F: Monad[F]): OptionT[F, B] = OptionT(
-    F.flatMap(value)(optA =>
-      optA.map(a => f(a).value)
-        .getOrElse(F.pure(Option.empty[B]))
+  def flatMap[B](f: A => OptionT[F, B])(implicit F: Monad[F]): OptionT[F, B] =
+    OptionT(
+      F.flatMap(value)(optA =>
+        optA.map(a => f(a).value)
+          .getOrElse(F.pure(Option.empty[B]))
     )
   )
 

@@ -95,4 +95,9 @@ object Applicative {
     override def ap[A, B](ff: Future[A => B])(fa: Future[A]): Future[B] =
       for {f <- ff; a <- fa} yield f(a)
   }
+
+  implicit def idApplicative: Applicative[Id] = new Applicative[Id] {
+    override def pure[A](a: A): Id[A] = a
+    override def ap[A, B](ff: Id[A => B])(fa: Id[A]): Id[B] = ff(fa)
+  }
 }

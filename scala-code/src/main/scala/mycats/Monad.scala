@@ -1,5 +1,6 @@
 package mycats
 
+import scala.concurrent.Future
 import scala.language.higherKinds
 
 // typeclass Monad
@@ -36,5 +37,31 @@ object Monad {
   implicit def optionMonad: Monad[Option] = new Monad[Option] {
     override def pure[A](a: A): Option[A] = Option(a)
     override def flatMap[A, B](fa: Option[A])(f: A => Option[B]): Option[B] = fa.flatMap(f)
+  }
+
+  implicit def vectorMonad: Monad[Vector] = new Monad[Vector] {
+    override def pure[A](a: A): Vector[A] = Vector(a)
+    override def flatMap[A, B](fa: Vector[A])(f: A => Vector[B]): Vector[B] = fa.flatMap(f)
+  }
+
+  implicit def futureMonad: Monad[Future] = new Monad[Future] {
+    import scala.concurrent.ExecutionContext.Implicits.global
+    override def pure[A](a: A): Future[A] = Future(a)
+    override def flatMap[A, B](fa: Future[A])(f: A => Future[B]): Future[B] = fa.flatMap(f)
+  }
+
+  implicit def idMonad: Monad[Id] = new Monad[Id] {
+    override def pure[A](a: A): Id[A] = a
+    override def flatMap[A, B](fa: Id[A])(f: A => Id[B]): Id[B] = f(fa)
+  }
+
+  object syntax {
+
+    implicit class PimpedF[F[_]: Monad, A](m: F[A]) {
+      private val F = implicitly[Monad[F]]
+      def pure[A](i: A): F[A] = F.pure(i)
+      def flatMap(f: A => F[A]): F[A] = F.flatMap(m)(f)
+      def map(f: A => A): F[A] = F.map(m)(f)
+    }
   }
 }
