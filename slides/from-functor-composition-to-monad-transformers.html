@@ -110,13 +110,16 @@
         height: 92%;
         float: left;
       }
-        .left-column h2:last-of-type, .left-column h3:last-child {
-          color: #000;
-        }
+      .left-column h2:last-of-type, .left-column h3:last-child {
+        color: #000;
+      }
       .right-column {
         width: 75%;
         float: right;
         padding-top: 1em;
+      }
+      .tiny-font {
+        font-size: 1em
       }
     </style>
   </head>
@@ -149,8 +152,10 @@ class: center
 4. Applicatives compose.
 5. Do Monads compose?
 6. Monad Transformers - Example OptionT
-7. Best Practices
-8. Resources
+7. Generic Monad Processing
+8. Best Practices
+9. OptionT - implementation
+10. Resources
 
 ---
 
@@ -164,7 +169,26 @@ class: center
 
 ```scala
 import cats._, cats.data._, cats.implicits._
+// import mycats._, transform._, Functor.syntax._, Monad.syntax._
 ```
+
+---
+
+## Imports for my own implementation of
+## Functor, Applicative, Monad and OptionT
+<br/>
+<br/>
+
+```scala
+// import cats._, cats.data._, cats.implicits._
+import mycats._, transform._, Functor.syntax._, Monad.syntax._
+```
+
+<br/>
+<br/>
+The same client code works with Cats and with my implementation.
+<br/>
+Only the imports need to be changed.
 
 ---
 
@@ -547,7 +571,8 @@ otli.getOrElse(42)
 
 ---
 
-## For comprehension with List[Option[Int]]
+## For comprehension with OptionT[List, Int]
+## encapsulating List[Option[Int]]
 <br/>
 <br/>
 
@@ -568,7 +593,89 @@ result4.value
 
 ---
 
-# 7. Best Practices
+# 7. Generic Monad Processing
+
+---
+
+## Using processIntMonads with OptionT
+<br/>
+OptionT encapsulates 2 monads, but it is itself also a monad.
+<br/>
+<br/>
+Hence it can be passed to a function accepting any Monad F[Int].
+<br/>
+<br/>
+
+```scala
+def processIntMonads[F[_]: Monad](monad1: F[Int], monad2: F[Int]): F[Int] =
+for {
+  x <- monad1
+  y <- monad2
+} yield x * y
+
+val result5 = processIntMonads(otli, otli)
+// result5: cats.data.OptionT[List,Int] = OptionT(List(Some(1), None, Some(2),
+//    Some(3), None, Some(2), None, Some(4), Some(6), Some(3), None, Some(6), Some(9)))
+
+result5.value
+// res14: List[Option[Int]] = List(Some(1), None, Some(2),
+//   Some(3), None, Some(2), None, Some(4), Some(6), Some(3), None, Some(6), Some(9))
+```
+
+---
+
+## Using processIntMonads with other Monads
+- List
+- Vector
+- Option
+- Future
+<br/>
+<br/>
+
+```scala
+processIntMonads(List(1, 2, 3), List(10, 20, 30))
+// res16: List[Int] = List(10, 20, 30, 20, 40, 60, 30, 60, 90)
+
+processIntMonads(Vector(1, 2, 3), Vector(10, 20, 30))
+// res17: scala.collection.immutable.Vector[Int] = Vector(10, 20, 30, 20, 40, 60, 30, 60, 90)
+
+processIntMonads(Option(5), Option(5))
+// res18: Option[Int] = Some(25)
+
+val fi = processIntMonads(Future(5), Future(5))
+// fi: scala.concurrent.Future[Int] = Future(<not completed>)
+Await.ready(fi, 1.second)
+fi
+// res20: scala.concurrent.Future[Int] = Future(Success(25))
+```
+
+---
+
+## Using processIntMonads with other OptionT-Monads
+- OptionT[Vector, Int]
+- OptionT[Option, Int]
+- OptionT[Future, Int]
+<br/>
+<br/>
+
+```scala
+val otvi = OptionT[Vector, Int](Vector(Option(3), Option(5)))
+processIntMonads(otvi, otvi).value
+// res21: Vector[Option[Int]] = Vector(Some(9), Some(15), Some(15), Some(25))
+
+val otoi = OptionT[Option, Int](Option(Option(5)))
+processIntMonads(otoi, otoi).value
+// res22: Option[Option[Int]] = Some(Some(25))
+
+val otfi = processIntMonads(OptionT(Future(Option(5))), OptionT(Future(Option(5))))
+Await.ready(otfi.value, 1.second)
+otfi.value
+// res23: scala.concurrent.Future[Option[Int]] = Future(Success(Some(25)))
+```
+
+---
+
+# 8. Best Practices
 
 ---
 
@@ -593,7 +700,48 @@ result4.value
 
 ---
 
-# 8. Resources
+# 9. OptionT - implementation
+
+---
+
+```scala
+import mycats.{Functor, Monad}
+
+final case class OptionT[F[_], A](value: F[Option[A]]) {
+
+  def map[B](f: A => B)(implicit F: Functor[F]): OptionT[F, B] =
+    OptionT(F.map(value)(_ map f))
+
+  def flatMap[B](f: A => OptionT[F, B])(implicit F: Monad[F]): OptionT[F, B] =
+    OptionT(
+      F.flatMap(value)(optA =>
+        optA.map(a => f(a).value)
+          .getOrElse(F.pure(Option.empty[B]))
+    )
+  )
+  def flatMapF[B](f: A => F[Option[B]])(implicit F: Monad[F]): OptionT[F, B] =
+    flatMap(f andThen OptionT.apply)
+
+  def isDefined(implicit F: Functor[F]): F[Boolean] = F.map(value)(_.isDefined)
+  def isEmpty(implicit F: Functor[F]): F[Boolean] = F.map(value)(_.isEmpty)
+  def getOrElse(default: => A)(implicit F: Functor[F]): F[A] = F.map(value)(_.getOrElse(default))
+}
+
+object OptionT {
+
+  implicit def functor[F[_] : Functor]: Functor[OptionT[F, ?]] = new Functor[OptionT[F, ?]] {
+    override def map[A, B](fa: OptionT[F, A])(f: A => B): OptionT[F, B] = fa map f
+  }
+  implicit def monad[F[_]](implicit F: Monad[F]): Monad[OptionT[F, ?]] = new Monad[OptionT[F, ?]] {
+    override def pure[A](a: A): OptionT[F, A] = OptionT(F.pure(Option(a)))
+    override def flatMap[A, B](fa: OptionT[F, A])(f: A => OptionT[F, B]): OptionT[F, B] = fa flatMap f
+  }
+}
+```
+
+---
+
+# 10. Resources
 
 <br/>
 <br/>
@@ -608,6 +756,7 @@ result4.value
 ---
 
 class: center
+
 ## Thanks for Listening
 <br/>
 <br/>
