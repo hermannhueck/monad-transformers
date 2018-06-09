@@ -153,9 +153,10 @@ class: center
 5. Do Monads compose?
 6. Monad Transformers - Example OptionT
 7. Generic Monad Processing
-8. Best Practices
-9. OptionT - implementation
-10. Resources
+8. Stacking Monads and Transformers
+9. Best Practices
+10. OptionT - implementation
+11. Resources
 
 ---
 
@@ -434,6 +435,56 @@ val cm = Monad[List] compose Monad[Option]
 
 ---
 
+## Trying to compose 2 generic Monads
+<br/>
+We cannot implement flatMap without knowing the higher kinded type of the inner monad.
+<br/>
+<br/>
+
+```scala
+// Hypothetical composition
+def composeFWithF2Impossible[F[_]: Monad, F2[_]: Monad] = {
+
+  type Composed[A] = F[F2[A]]
+
+  new Monad[Composed] {
+
+    def pure[A](a: A): Composed[A] = Monad[F].pure(Monad[F2].pure(a))
+
+    def flatMap[A, B](fa: Composed[A])(f: A => Composed[B]): Composed[B] = ???
+    // !!! Problem! How do we write flatMap? Impossible to implement!!!
+  }
+}
+```
+
+---
+
+## Trying to compose 1 generic and 1 concrete Monad
+<br/>
+Knowing the higher kinded type of the inner monad (Option) we can implement flatMap.
+<br/>
+<br/>
+
+```scala
+def composeFWithOption[F[_]: Monad] = {
+
+  type Composed[A] = F[Option[A]]
+
+  new Monad[Composed] {
+
+    def pure[A](a: A): Composed[A] =  Monad[F].pure(Monad[Option].pure(a))
+
+    def flatMap[A, B](fOptA: Composed[A])(f: A => Composed[B]): Composed[B] =
+      Monad[F].flatMap(fOptA) {
+        case None => Monad[F].pure(Option.empty[B])
+        case Some(a) => f(a)
+      }
+  }
+}
+```
+
+---
+
 ## Do Monads compose?
 <br/>
 <br/>
@@ -675,7 +726,43 @@ otfi.value
 
 ---
 
-# 8. Best Practices
+# 8. Stacking Monads and Transformers
+
+---
+
+## Stacking 3 monads with 2 transformers
+<br/>
+A database query should be async -> use a Future[???]
+Accessing the DB may give you an error -> Future[Either[String, ???]]
+The entity searched may or may not be there ->  Future[Either[String, Option[???]]]
+<br/>
+With EitherT and OptionT we can stack the 3 monads together.
+<br/>
+<br/>
+
+```scala
+def compute[A]: A => Future[Either[String, Option[A]]] =
+  input => Future(Right(Some(input)))
+
+def stackMonads[A](input: A): OptionT[EitherT[Future, String, ?], A] =
+  OptionT(EitherT(compute(input)))
+
+val wrappedTwice: OptionT[EitherT[Future, String, ?], Int] =
+for {
+  a <- stackMonads(10)
+  b <- stackMonads(32)
+} yield a + b
+
+val future: Future[Either[String, Option[Int]]] = wrappedTwice.value.value
+
+val result: Either[String, Option[Int]] = Await.result(future, 3.seconds)
+
+println(result.right.get) // 42
+```
+
+---
+
+# 9. Best Practices
 
 ---
 
@@ -683,8 +770,8 @@ otfi.value
 <br/>
 <br/>
 - A monad transformer is just another monad (wrapping 2 monads).
-- You can wrap the transformer into another transformer (2 Transformers = 3 monads)
-- This procedure creates a transformer stack.
+- You can wrap 3 monads with 2 transformers.
+- You can wrap 4 monads with 3 transformers, etc.
 - Too many stacked transformers do not make your code more understandable.
 - Too many stacked transformers can degrade performance.
 
@@ -700,7 +787,7 @@ otfi.value
 
 ---
 
-# 9. OptionT - implementation
+# 10. OptionT - implementation
 
 ---
 
@@ -741,17 +828,19 @@ object OptionT {
 
 ---
 
-# 10. Resources
+# 11. Resources
 
 <br/>
 <br/>
 
 - Code and Slides of this Talk:
-  [https://github.com/hermannhueck/monad-transformers](https://github.com/hermannhueck/monad-transformers)
+  https://github.com/hermannhueck/monad-transformers
+- "Scala with Cats" - Book by Noel Welsh and Dave Gurnell
+  https://underscore.io/books/scala-with-cats/
 - "Monad transformers down to earth" - Talk by Gabriele Petronella at Scala Days Copenhagen 2017
-  [https://www.youtube.com/watch?v=jd5e71nFEZM](https://www.youtube.com/watch?v=jd5e71nFEZM)
+  https://www.youtube.com/watch?v=jd5e71nFEZM
 - "FSiS Part 7 - OptionT transformer" - Live coding video tutorial by Michael Pilquist, 2015
-  [https://www.youtube.com/watch?v=ZNUTMabdgzo](https://www.youtube.com/watch?v=ZNUTMabdgzo)
+  https://www.youtube.com/watch?v=ZNUTMabdgzo
 
 ---
 

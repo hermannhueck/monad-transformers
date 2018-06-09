@@ -2,8 +2,8 @@ package app
 
 import scala.language.higherKinds
 
-//import cats._, cats.data._, cats.implicits._
-import mycats._, transform._, Functor.syntax._, Monad.syntax._
+import cats._, cats.data._, cats.implicits._
+//import mycats._, transform._, Functor.syntax._, Monad.syntax._
 
 object Main extends App {
 
