@@ -5,7 +5,7 @@
 
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
     <meta name="keywords" content="Scala,Cats,Functor,Monad,Transformer">
-    <meta name="description" content="A talk on functor composition and monad transformers">
+    <meta name="description" content="A Talk on Functor Composition and Monad Transformers">
 
     <style type="text/css">
       @import url(https://fonts.googleapis.com/css?family=Yanone+Kaffeesatz);
@@ -140,7 +140,26 @@ class: center
 <br/>
 ## &copy; 2018 Hermann Hueck
 <br/>
-[https://github.com/hermannhueck/monad-transformers](https://github.com/hermannhueck/monad-transformers)
+<br/>
+<br/>
+https://github.com/hermannhueck/monad-transformers
+
+---
+
+# Abstract
+<br/>
+<br/>
+In a List[Option[A]] or Future[Option[A]] we want to access the value of type A
+conveniently without nested mapping and flatMapping.
+
+We can avoid nested mapping with composed Functors.
+Functors compose, but Monads do not! What can we do?
+
+Monad transformers to the rescue!
+
+After going through Functor composition I show how 2 Monads are bolted together with
+a Monad transformer and how to use this construct. I demonstrate this with the
+Option transformer OptionT and will end up with best practices.
 
 ---
 
@@ -148,16 +167,17 @@ class: center
 <br/>
 1. Nested Monads in for comprehensions
 2. Functors compose.
-3. Aside: Creating List[Int => Int] and List[Option[Int => Int]]
+3. Aside: Creating List[A => B] and List[Option[A => B]]
 4. Applicatives compose.
 5. Do Monads compose?
 6. Monad Transformers - Example OptionT
 7. Generic Monad Processing
 8. Stacking Monads and Transformers
-9. Best Practices
-10. OptionT - implementation
-11. Monad Transformers in Cats
-12. Resources
+9. Making the Types Fit
+10. Monad Transformers in Cats
+11. Best Practices
+12. OptionT - Implementation
+13. Resources
 
 ---
 
@@ -165,13 +185,13 @@ class: center
 
 ---
 
-## Imports for Cats
+## Imports for (all of) Cats
 <br/>
 <br/>
 
 ```scala
 import cats._, cats.data._, cats.implicits._
-// import mycats._, transform._, Functor.syntax._, Monad.syntax._
+// import mycats._, transform._, Functor.ops._, Monad.ops._
 ```
 
 ---
@@ -183,14 +203,14 @@ import cats._, cats.data._, cats.implicits._
 
 ```scala
 // import cats._, cats.data._, cats.implicits._
-import mycats._, transform._, Functor.syntax._, Monad.syntax._
+import mycats._, transform._, Functor.ops._, Monad.ops._
 ```
 
 <br/>
 <br/>
 The same client code works with Cats and with my implementation.
 <br/>
-Only the imports need to be changed.
+Only the imports need to be changed!
 
 ---
 
@@ -217,7 +237,7 @@ val result1: List[Option[Int]] =
 ---
 
 ## Compiler translates for comprehension to
-## flatMap, map and withFilter
+## flatMap, map (and withFilter)
 <br/>
 <br/>
 
@@ -245,13 +265,13 @@ loi1
 
 ```scala
 val result3: List[Option[Int]] =
-for {
-  oi1: Option[Int] <- loi1
-  oi2: Option[Int] <- loi2
-} yield for {
-  i1: Int <- oi1
-  i2: Int <- oi2
-} yield i1 * i2
+  for {
+    oi1: Option[Int] <- loi1
+    oi2: Option[Int] <- loi2
+  } yield for {
+    i1: Int <- oi1
+    i2: Int <- oi2
+  } yield i1 * i2
 
 // result3: List[Option[Int]] = List(Some(1), None,
 //   Some(2), Some(3), None, None, None, None, Some(2),
@@ -262,22 +282,89 @@ for {
 
 ## Wanted:
 a for comprehension to process Ints nested in 2 contexts
-<br/> ... something like this one:
 <br/>
+<br/>
+... something like this one:
 <br/>
 
 ```scala
 // This code does not compile!
 val result4: List[Option[Int]] =
-for {
-  i1: Int <- loi1
-  i2: Int <- loi2
-} yield i1 * i2
+  for {
+    i1: Int <- loi1
+    i2: Int <- loi2
+  } yield i1 * i2
+```
+
+<br/>
+... or like this one:
+<br/>
+
+```scala
+// How can we create such a ListOption?
+val result4: ListOption[Int] =
+  for {
+    i1: Int <- loi1
+    i2: Int <- loi2
+  } yield i1 * i2
 ```
 
 ---
 
+<br/>
+To be usable in a for comprehension our "ListOption"
+must provide "map", "flatMap" (and "withFilter") operations.
+Hence it must be a Functor (for map) as well a Monad (for flatMap).
+<br/>
+
+Every Monad is also a Functor.
+<br/>
+
+But lets first look at Functors. (It's the simpler part.)
+
+---
+
 # 2. Functors compose.
+
+---
+
+## Recap: What is a Functor? (1/2)
+<br/>
+<br/>
+
+```scala
+// The gist of typeclass Functor
+
+trait Functor[F[_]] {
+
+  def  map[A, B](fa: F[A])(f: A => B): F[B]
+  
+}
+```
+
+---
+
+## Recap: What is a Functor? (2/2)
+<br/>
+<br/>
+
+```scala
+// Simplified typeclass Functor
+trait Functor[F[_]] {
+    
+  // --- intrinsic abstract functions
+
+  def  map[A, B](fa: F[A])(f: A => B): F[B]
+  
+    
+  // --- concrete functions implemented in terms of map
+
+  def fmap[A, B](fa: F[A])(f: A => B): F[B] =
+    map(fa)(f)     // alias for map
+
+  // ... other functions ...
+}
+```
 
 ---
 
@@ -330,21 +417,30 @@ val loSquared4 = cf.map(loi)(x => x * x)
 
 ```scala
 implicit class PimpedListOptionA[A](list: List[Option[A]]) {
-  // functor type: Functor[Lambda[X => List[Option[X]]]]
-  val functor = Functor[List] compose Functor[Option]
-  def map[B](f: A => B): List[Option[B]] = functor.map(list)(f)
-  def fmap[B](f: A => B): List[Option[B]] = functor.map(list)(f)
+  val composedFunctor = Functor[List] compose Functor[Option]
+  def map[B](f: A => B): List[Option[B]] = composedFunctor.map(list)(f)
+  def fmap[B](f: A => B): List[Option[B]] = composedFunctor.map(list)(f)
 }
 
 val loSquared5 = loi.fmap(x => x * x)
 // loSquared5: List[Option[Int]] = List(Some(1), None, Some(4), Some(9))
+
+// Attention!!! fmap works but map still doesn't work!!!
+
+val loSquared6 = loi.map(x => x * x)
+<console>:25: error: value * is not a member of Option[Int]
+       val loSquared6 = loi.map(x => x * x)
+
+val loSquared7 = for { x <- loi } yield x * x
+<console>:22: error: value * is not a member of Option[Int]
+       val loSquared7 = for { x <- loi } yield x * x
 ```
 
 ---
 
 # 3. Aside:
-# Creating List[Int => Int]
-# and List[Option[Int => Int]]
+# Creating List[A => B]
+# and List[Option[A => B]]
 
 ---
 
@@ -385,12 +481,62 @@ val lf1 = lf1_4
 // lf1: List[Int => Int] = List($$Lambda$..., $$Lambda$..., $$Lambda$...)
 
 val lof1 = lf1 map Option.apply
-// lof1: List[Option[Int => Int]] = List(Some($$Lambda$...), Some($$Lambda$...), Some($$Lambda$...))
+// lof1: List[Option[Int => Int]] =
+//   List(Some($$Lambda$...), Some($$Lambda$...), Some($$Lambda$...))
 ```
 
 ---
 
 # 4. Applicatives compose.
+
+---
+
+## Recap: What is an Applicative? (1/2)
+<br/>
+<br/>
+
+```scala
+// The gist of typeclass Applicative
+
+trait Applicative[F[_]] extends Functor[F] {
+
+  def pure[A](a: A): F[A]
+
+  def ap[A, B](ff: F[A => B])(fa: F[A]): F[B]
+}
+```
+
+---
+
+## Recap: What is an Applicative? (2/2)
+<br/>
+
+```scala
+// Simplified typeclass Applicative
+trait Applicative[F[_]] extends Functor[F] {
+
+  // --- intrinsic abstract Applicative methods
+  def pure[A](a: A): F[A]
+  def ap[A, B](ff: F[A => B])(fa: F[A]): F[B]
+
+  // --- method implementations in terms of pure and ap
+
+  def ap2[A, B, Z](ff: F[(A, B) => Z])(fa: F[A], fb: F[B]): F[Z] = ???
+  // ap3, ap4 ... ap22
+
+  override def map[A, B](fa: F[A])(f: A => B): F[B] = ap(pure(f))(fa)
+
+  def map2[A, B, Z](fa: F[A], fb: F[B])(f: (A, B) ⇒ Z): F[Z] = ???
+  // map3, map4 ... map22
+
+  def product[A, B](fa: F[A], fb: F[B]): F[(A, B)] = ???
+
+  def tuple2[A, B](fa: F[A], fb: F[B]): F[(A, B)] = product(fa, fb)
+  // tuple3, tuple4 ... tuple22
+  
+  // ... other functions ...
+}
+```
 
 ---
 
@@ -412,7 +558,8 @@ val liResult = Applicative[List].ap(lf1)(li)
 <br/>
 
 ```scala
-val loiResult = (Applicative[List] compose Applicative[Option]).ap(lof1)(loi)
+val ca = Applicative[List] compose Applicative[Option]
+val loiResult = ca.ap(lof1)(loi)
 // loiResult: List[Option[Int]] = List(Some(1), None, Some(2), Some(3),
 //   Some(2), None, Some(4), Some(6), Some(3), None, Some(6), Some(9))
 ```
@@ -423,13 +570,62 @@ val loiResult = (Applicative[List] compose Applicative[Option]).ap(lof1)(loi)
 
 ---
 
+## Recap: What is a Monad? (1/2)
+<br/>
+<br/>
+
+```scala
+// The gist of typeclass Monad
+
+trait Monad[F[_]] extends Applicative[F] {
+
+  def pure[A](a: A): F[A]
+
+  def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]
+}
+```
+
+---
+
+## Recap: What is a Monad? (2/2)
+<br/>
+<br/>
+
+```scala
+// Simplified typeclass Monad
+trait Monad[F[_]] extends Applicative[F] {
+
+  // --- intrinsic abstract functions
+  def pure[A](a: A): F[A]
+  def flatMap[A, B](fa: F[A])(f: A => F[B]): F[B]
+
+  // --- concrete functions implemented in terms of flatMap and pure
+
+  override def map[A, B](fa: F[A])(f: A => B): F[B] = flatMap(fa)(a => pure(f(a)))
+
+  def fmap[A, B](fa: F[A])(f: A => B): F[B] = map(fa)(f)  // alias for map
+
+  def flatten[A](ffa: F[F[A]]): F[A] = flatMap(ffa)(identity)
+
+  override def ap[A, B](ff: F[A => B])(fa: F[A]): F[B] = ???
+
+  // ... other functions ...
+}
+```
+
+---
+
 ## Do Monads compose?
 <br/>
 <br/>
 
 ```scala
+val cf = Functor[List] compose Functor[Option]
+// cf: cats.Functor[[α]List[Option[α]]] = cats.Functor$$anon$1@386ed52a
+
 val ca = Applicative[List] compose Applicative[Option]
 // ca: cats.Applicative[[α]List[Option[α]]] = cats.Alternative$$anon$1@69102316
+
 val cm = Monad[List] compose Monad[Option]
 // cm: cats.Applicative[[α]List[Option[α]]] = cats.Alternative$$anon$1@48b5e9dd
 ```
@@ -438,22 +634,23 @@ val cm = Monad[List] compose Monad[Option]
 
 ## Trying to compose 2 generic Monads
 <br/>
-We cannot implement flatMap without knowing the higher kinded type of the inner monad.
+We cannot implement flatMap without knowing the higher kinded type of the inner Monad.
 <br/>
 <br/>
 
 ```scala
 // Hypothetical composition
-def composeFWithF2Impossible[F[_]: Monad, F2[_]: Monad] = {
+def composeFWithGImpossible[F[_]: Monad, G[_]: Monad] = {
 
-  type Composed[A] = F[F2[A]]
+  type Composed[A] = F[G[A]]
 
   new Monad[Composed] {
 
-    def pure[A](a: A): Composed[A] = Monad[F].pure(Monad[F2].pure(a))
+    def pure[A](a: A): Composed[A] = Monad[F].pure(Monad[G].pure(a))
 
     def flatMap[A, B](fa: Composed[A])(f: A => Composed[B]): Composed[B] = ???
-    // !!! Problem! How do we write flatMap? Impossible to implement!!!
+    // !!! Problem! How do we write flatMap? Impossible to implement
+    // !!! generically without knowledge of the type of the inner Monad!
   }
 }
 ```
@@ -462,7 +659,7 @@ def composeFWithF2Impossible[F[_]: Monad, F2[_]: Monad] = {
 
 ## Trying to compose 1 generic and 1 concrete Monad
 <br/>
-Knowing the higher kinded type of the inner monad (Option) we can implement flatMap.
+Knowing the higher kinded type of the inner Monad (Option) we can implement flatMap.
 <br/>
 <br/>
 
@@ -494,7 +691,19 @@ def composeFWithOption[F[_]: Monad] = {
 - Applicatives compose.
 - **Monads do <u>NOT</u> compose!**
 <br/>
-### The solution: Monad Transformers
+--
+
+### Solution: &nbsp; Monad Transformers
+<br/>
+--
+
+Monad Transformers are some kind of composition mechanism for Monads.
+<br/>
+<br/>
+--
+
+The inner Monad must be concrete, e.g. Option or Either. <br/>
+The outer Monad is left abstract. &nbsp; &nbsp; F[_]: Monad <br/>
 
 ---
 
@@ -504,27 +713,24 @@ def composeFWithOption[F[_]: Monad] = {
 
 ## What is OptionT?
 <br/>
+
 - OptionT is a generic case class which encapsulates an F[Option[A]].
-- F is the generic type constructor of another monad like List, Future, Either, Id.
-- A Monad instance for OptionT (implementing pure and flatMap) must be provided in implicit scope in order to allow flatMapping over OptionT.
+- F is a place holder for any Monad: List, Future, Either[A, ?], Id etc.
+- A Monad instance for OptionT (implementing pure and flatMap) must be provided implicitly in order to allow flatMapping over OptionT.
 <br/>
 <br/>
 
 ```scala
-final case class OptionT[F[_], A](value: F[Option[A]]) {
+final case class OptionT[F[_]: Monad, A](value: F[Option[A]]) {
   // ...
 }
 
 object OptionT {
 
-  implicit def monad[F[_]](implicit F: Monad[F]): Monad[OptionT[F, ?]] =
-
+  implicit def monad[F[_]]: Monad[F]: Monad[OptionT[F, ?]] =
     new Monad[OptionT[F, ?]] {
-
-      override def pure[A](a: A): OptionT[F, A] = ???
-
-      override def flatMap[A, B](fa: OptionT[F, A])
-                                (f: A => OptionT[F, B]): OptionT[F, B] = ???
+      override def pure[A](a: A) = ???
+      override def flatMap[A, B](fa)(f) = ???
     }
 }
 ```
@@ -580,6 +786,8 @@ In our case the type is: Int => List[Option[String]]
 <br/>
 
 ```scala
+def fillListWith(x: Int): List[Option[String]] = List.fill(x)(Option(x.toString))
+
 val otliFlatMappedF = otli.flatMapF(x => fillListWith(x))
 // otliFlatMappedF: cats.data.OptionT[List,String] =
 //   OptionT(List(Some(1), None, Some(2), Some(2), Some(3), Some(3), Some(3)))
@@ -606,7 +814,7 @@ otliMapped.value
 
 ---
 
-## OptionT.{isDefined isEmpty getOrElse}
+## OptionT.{isDefined, isEmpty, getOrElse, fold}
 <br/>
 <br/>
 
@@ -619,6 +827,9 @@ otli.isEmpty
 
 otli.getOrElse(42)
 // res12: List[Int] = List(1, 42, 2, 3)
+
+otli.fold(42.0)(_.toDouble)
+// res13: List[Int] = List(1.0, 42.0, 2.0, 3.0)
 ```
 
 ---
@@ -629,10 +840,11 @@ otli.getOrElse(42)
 <br/>
 
 ```scala
-val result4: OptionT[List, Int] = for {
-  x <- otli
-  y <- otli
-} yield x * y
+val result4: OptionT[List, Int] =
+  for {
+    x <- otli
+    y <- otli
+  } yield x * y
 // result4: cats.data.OptionT[List,Int] =
 //   OptionT(List(Some(1), None, Some(2), Some(3), None, Some(2),
 //       None, Some(4), Some(6), Some(3), None, Some(6), Some(9)))
@@ -651,27 +863,29 @@ result4.value
 
 ## Using processIntMonads with OptionT
 <br/>
-OptionT encapsulates 2 monads, but it is itself also a monad.
+OptionT is a Monad which encapsulates two other Monads.
 <br/>
 <br/>
-Hence it can be passed to a function accepting any Monad F[Int].
+Hence an OptionT can be passed to a function accepting any Monad F[Int].
 <br/>
 <br/>
 
 ```scala
 def processIntMonads[F[_]: Monad](monad1: F[Int], monad2: F[Int]): F[Int] =
-for {
-  x <- monad1
-  y <- monad2
-} yield x * y
+  for {
+    x <- monad1
+    y <- monad2
+  } yield x * y
 
 val result5 = processIntMonads(otli, otli)
-// result5: cats.data.OptionT[List,Int] = OptionT(List(Some(1), None, Some(2),
-//    Some(3), None, Some(2), None, Some(4), Some(6), Some(3), None, Some(6), Some(9)))
+// result5: cats.data.OptionT[List,Int] = OptionT(List(
+//    Some(1), None, Some(2), Some(3), None, Some(2),
+//    None, Some(4), Some(6), Some(3), None, Some(6), Some(9)))
 
 result5.value
-// res14: List[Option[Int]] = List(Some(1), None, Some(2),
-//   Some(3), None, Some(2), None, Some(4), Some(6), Some(3), None, Some(6), Some(9))
+// res14: List[Option[Int]] = List(
+//    Some(1), None, Some(2), Some(3), None, Some(2),
+//    None, Some(4), Some(6), Some(3), None, Some(6), Some(9))
 ```
 
 ---
@@ -731,13 +945,13 @@ otfi.value
 
 ---
 
-## Stacking 3 monads with 2 transformers
+## Stacking 3 Monads with 2 transformers
 <br/>
-A database query should be async -> use a Future[???]
-Accessing the DB may give you an error -> Future[Either[String, ???]]
-The entity searched may or may not be there ->  Future[Either[String, Option[???]]]
+A database query should be async -> use a Future[???]<br/>
+Accessing the DB may give you an error -> Future[Either[String, ???]]<br/>
+The searched entity may not be there ->  Future[Either[String, Option[???]]]<br/>
 <br/>
-With EitherT and OptionT we can stack the 3 monads together.
+With EitherT and OptionT we can stack the 3 Monads together.
 <br/>
 <br/>
 
@@ -745,16 +959,16 @@ With EitherT and OptionT we can stack the 3 monads together.
 def compute[A]: A => Future[Either[String, Option[A]]] =
   input => Future(Right(Some(input)))
 
-def stackMonads[A](input: A): OptionT[EitherT[Future, String, ?], A] =
-  OptionT(EitherT(compute(input)))
+def stackMonads[A]: A => OptionT[EitherT[Future, String, ?], A] =
+  input => OptionT(EitherT(compute(input)))
 
-val wrappedTwice: OptionT[EitherT[Future, String, ?], Int] =
-for {
-  a <- stackMonads(10)
-  b <- stackMonads(32)
-} yield a + b
+val stackedResult: OptionT[EitherT[Future, String, ?], Int] =
+  for {
+    a <- stackMonads(10)
+    b <- stackMonads(32)
+  } yield a + b
 
-val future: Future[Either[String, Option[Int]]] = wrappedTwice.value.value
+val future: Future[Either[String, Option[Int]]] = stackedResult.value.value
 
 val result: Either[String, Option[Int]] = Await.result(future, 3.seconds)
 
@@ -763,98 +977,280 @@ println(result.right.get) // 42
 
 ---
 
-# 9. Best Practices
+# 9. Making the Types Fit
 
 ---
 
-## Don't stack too many transformers!
+## When types don't fit ...
 <br/>
-<br/>
-- A monad transformer is just another monad (wrapping 2 monads).
-- You can wrap 3 monads with 2 transformers.
-- You can wrap 4 monads with 3 transformers, etc.
-- Too many stacked transformers do not make your code more understandable.
-- Too many stacked transformers can degrade performance.
-
----
-
-## Don't expose monad transformers to your API!
-<br/>
-<br/>
-- This would make your API harder to understand.
-- The user of your API may not know what a monad transformer is.
-- Just call transformer.value before you expose it.
-- Thus you expose List[Option[A]] instead of OptionT[List, A].
-
----
-
-# 10. OptionT - implementation
-
----
 
 ```scala
-import mycats.{Functor, Monad}
+type Nickname = String
+type Name = String
+type Age = Int
 
-final case class OptionT[F[_], A](value: F[Option[A]]) {
+final case class User(name: Name, age: Age, nickname: Nickname)
 
-  def map[B](f: A => B)(implicit F: Functor[F]): OptionT[F, B] =
-    OptionT(F.map(value)(_ map f))
-
-  def flatMap[B](f: A => OptionT[F, B])(implicit F: Monad[F]): OptionT[F, B] =
-    OptionT(
-      F.flatMap(value)(optA =>
-        optA.map(a => f(a).value)
-          .getOrElse(F.pure(Option.empty[B]))
-    )
-  )
-  def flatMapF[B](f: A => F[Option[B]])(implicit F: Monad[F]): OptionT[F, B] =
-    flatMap(f andThen OptionT.apply)
-
-  def isDefined(implicit F: Functor[F]): F[Boolean] = F.map(value)(_.isDefined)
-  def isEmpty(implicit F: Functor[F]): F[Boolean] = F.map(value)(_.isEmpty)
-  def getOrElse(default: => A)(implicit F: Functor[F]): F[A] = F.map(value)(_.getOrElse(default))
-}
-
-object OptionT {
-
-  implicit def functor[F[_] : Functor]: Functor[OptionT[F, ?]] = new Functor[OptionT[F, ?]] {
-    override def map[A, B](fa: OptionT[F, A])(f: A => B): OptionT[F, B] = fa map f
-  }
-  implicit def monad[F[_]](implicit F: Monad[F]): Monad[OptionT[F, ?]] = new Monad[OptionT[F, ?]] {
-    override def pure[A](a: A): OptionT[F, A] = OptionT(F.pure(Option(a)))
-    override def flatMap[A, B](fa: OptionT[F, A])(f: A => OptionT[F, B]): OptionT[F, B] = fa flatMap f
-  }
-}
+// return types of these functions are incompatible
+def getUser(nickname: Nickname): Future[Option[User]] = ???
+def getAge(user: User): Future[Age] = ???
+def getName(user: User): Option[Name] = ???
 ```
 
 ---
 
-# 11. Monad Transformers in Cats
+name: MakingTypesFit
+
+## ... make them fit
+
+### ... the classical way
+
+```scala
+def getNameAge(nickname: Nickname): Future[Option[(Name, Age)]] =
+  (for {
+    user <- OptionT(getUser(nickname))
+    age <- OptionT(getAge(user).map(Option(_)))
+    name <- OptionT(Future(getName(user)))
+  } yield (name, age)).value
+```
+--
+
+name: MakingTypesFit
+
+### ... or with <u>OptionT.liftF</u> and <u>OptionT.fromOption</u>.
+
+```scala
+def getNameAge(nickname: Nickname): Future[Option[(Name, Age)]] =
+  (for {
+    user <- OptionT(getUser(nickname))
+    age <- OptionT.liftF(getAge(user))
+    name <- OptionT.fromOption(getName(user))
+  } yield (name, age)).value
+```
+
+---
+
+## Compare the solution without OptionT
+<br/>
+
+```scala
+def getNameAge(nickname: Nickname): Future[Option[(Name, Age)]] =
+  for {
+    maybeUser <- getUser(nickname)
+    if maybeUser.isDefined
+    user = maybeUser.get
+    maybeAge <- getAge(user).map(Option(_))
+    maybeName <- Future(getName(user))
+  } yield for {
+    name <- maybeName
+    age <- maybeAge
+  } yield (name, age)
+```
+
+---
+
+# 10. Monad Transformers in Cats
 
 <br/>
 <br/>
 
 - cats.data.OptionT for Option
 - cats.data.EitherT for Either
-- cats.data.ReaderT for Reader (ReaderT is an alias for Kleisli)
-- cats.data.WriterT for Writer
-- cats.data.StateT for State
 - cats.data.IdT for Id
+- cats.data.WriterT for Writer
+- cats.data.ReaderT for Reader (ReaderT is an alias for Kleisli)
+- cats.data.StateT for State
 
 ---
 
-# 12. Resources
+# 11. Best Practices
+
+---
+
+## Don't expose Monad transformers to your API!
+<br/>
+<br/>
+--
+
+- This would make your API harder to understand.
+--
+
+- The user of your API may not know what a Monad transformer is.
+--
+
+- Just call transformer.value before you expose it.
+--
+
+- Thus you expose List[Option[A]] instead of OptionT[List, A].
+--
+
+- Or you expose Future[Option[A]] instead of OptionT[Future, A].
+- See [example](#MakingTypesFit)
+
+---
+
+## Don't stack too many Monads!
+<br/>
+--
+
+- A Monad transformer is just another Monad (wrapping 2 Monads).
+--
+
+- You can wrap 3 Monads with 2 transformers (= 5 Monads).
+--
+
+- You can wrap 4 Monads with 3 transformers (= 7 Monads), etc.
+--
+
+- Too many stacked transformers do not make your code clearer.
+--
+
+- Too many stacked transformers may degrade performance.
+--
+
+- Structures consume heap.
+--
+
+- Does it really slow down your app? Maybe IO is the bottleneck? Benchmark if necessary!
+<br/>
+<br/>
+--
+
+Consider other approaches:<br/>
+<br/>
+--
+
+- Free Monads<br/>
+--
+
+- Tagless Final<br/>
+--
+
+- Or: Go back to nested for comprehensions.<br/>
+--
+
+## Follow the "<u>Principle of least power</u>"!
+
+---
+
+# 12. OptionT - Implementation
+
+---
+
+### ListOption - implementation
+
+```scala
+final case class ListOption[A](value: List[Option[A]]) {
+
+  def map[B](f: A => B): ListOption[B] =
+    ListOption(value.map(_ map f))
+  def flatMap[B](f: A => ListOption[B]): ListOption[B] =
+    ListOption(
+      value.flatMap {
+        case None => List(Option.empty[B])
+        case Some(a) => f(a).value
+      }
+    )
+  def flatMapF[B](f: A => List[Option[B]]): ListOption[B] =
+    flatMap(a => ListOption(f(a)))
+
+  def isDefined: List[Boolean] = value.map(_.isDefined)
+  def isEmpty: List[Boolean] = value.map(_.isEmpty)
+  def getOrElse(default: => A): List[A] = value.map(_.getOrElse(default))
+}
+object ListOption {
+  implicit def monad: Monad[ListOption] = new Monad[ListOption] {
+    override def pure[A](a: A): ListOption[A] = ListOption(List(Option(a)))
+    override def flatMap[A, B](fa: ListOption[A])
+                    (f: A => ListOption[B]): ListOption[B] = fa flatMap f
+  }
+}
+```
+
+---
+
+## Abstracting over List gives you OptionT.
+<br/>
+--
+
+- Parameterize ListOption with type constructor: ListOption[F[_], A]
+--
+
+- F must be a Monad! Use bounded context: ListOption[F[_]: Monad, A]
+--
+
+- Save an instance of Monad F in a value: val F = Monad[F]
+--
+
+- Replace every occurence of List with type constructor F.
+--
+
+- Replace every ListOption[A] with ListOption[F, A].
+--
+
+- Replace invocations of map/flatMap on List by invocations on Monad F.
+--
+
+- Replace invocations of List.apply by invocations of F.pure.
+--
+
+- Rename ListOption to OptionT.
+
+---
+
+### OptionT - implementation
+
+```scala
+final case class OptionT[F[_]: Monad, A](value: F[Option[A]]) {
+  val F = Monad[F]
+
+  def map[B](f: A => B): OptionT[F, B] =
+    OptionT(F.map(value)(_ map f))
+  def flatMap[B](f: A => OptionT[F, B]): OptionT[F, B] =
+    OptionT(
+      F.flatMap(value) {
+        case None => F.pure(Option.empty[B])
+        case Some(a) => f(a).value
+      }
+    )
+  def flatMapF[B](f: A => F[Option[B]]): OptionT[F, B] =
+    flatMap(a => OptionT(f(a)))
+
+  def isDefined: F[Boolean] = F.map(value)(_.isDefined)
+  def isEmpty: F[Boolean] = F.map(value)(_.isEmpty)
+  def getOrElse(default: => A): F[A] = F.map(value)(_.getOrElse(default))
+}
+object OptionT {
+  implicit def monad[F[_]: Monad]: Monad[OptionT[F, ?]] =
+    new Monad[OptionT[F, ?]] {
+      override def pure[A](a: A): OptionT[F, A] =
+        OptionT(Monad[F].pure(Option(a)))
+      override def flatMap[A, B](fa: OptionT[F, A])
+                      (f: A => OptionT[F, B]): OptionT[F, B] = fa flatMap f
+    }
+}
+```
+
+---
+
+# 13. Resources
 
 <br/>
 <br/>
 
-- Code and Slides of this Talk:
+- Code and Slides of this Talk:<br/>
   https://github.com/hermannhueck/monad-transformers
-- "Scala with Cats" - Book by Noel Welsh and Dave Gurnell
+
+- "Scala with Cats"<br/>
+  Book by Noel Welsh and Dave Gurnell<br/>
   https://underscore.io/books/scala-with-cats/
-- "Monad transformers down to earth" - Talk by Gabriele Petronella at Scala Days Copenhagen 2017
+
+- "Monad transformers down to earth"<br/>
+  Talk by Gabriele Petronella at Scala Days Copenhagen 2017<br/>
   https://www.youtube.com/watch?v=jd5e71nFEZM
-- "FSiS Part 7 - OptionT transformer" - Live coding video tutorial by Michael Pilquist, 2015
+
+- "FSiS Part 7 - OptionT transformer"<br/>
+  Live coding video tutorial by Michael Pilquist, 2015<br/>
   https://www.youtube.com/watch?v=ZNUTMabdgzo
 
 ---
@@ -864,14 +1260,47 @@ class: center
 ## Thanks for Listening
 <br/>
 <br/>
+<br/>
+<br/>
 
 # Q &amp; A
+<br/>
+<br/>
+<br/>
+<br/>
+
+https://github.com/hermannhueck/monad-transformers
 
 </textarea>
     <script src="remark-latest.min.js" type="text/javascript">
     </script>
     <script type="text/javascript">
-      var slideshow = remark.create();
+      var slideshow = remark.create({
+        // sourceUrl: 'some-source.md',
+
+        // Set the slideshow display ratio
+        // Default: '4:3'
+        // Alternatives: '16:9', ...
+        ratio: '4:3',
+
+        // Navigation options
+        navigation: {
+          // Enable or disable navigating using scroll
+          // Default: true
+          // Alternatives: false
+          scroll: false,
+
+          // Enable or disable navigation using touch
+          // Default: true
+          // Alternatives: false
+          touch: true,
+
+          // Enable or disable navigation using click
+          // Default: false
+          // Alternatives: true
+          click: false
+        }
+      });
     </script>
   </body>
 </html>
