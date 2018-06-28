@@ -1,20 +1,21 @@
-package transform
-
-import scala.language.higherKinds
+package app
 
 import mycats.Monad
+
+import scala.language.higherKinds
 // import cats.Monad, cats.instances.option._
 
 object ComposingMonads {
 
   // Hypothetical example
-  def composeFWithF2Impossible[F[_]: Monad, F2[_]: Monad] = {
+  //
+  def composeFWithGImpossible[F[_]: Monad, G[_]: Monad] = {
 
-    type Composed[A] = F[F2[A]]
+    type Composed[A] = F[G[A]]
 
     new Monad[Composed] {
 
-      def pure[A](a: A): Composed[A] = Monad[F].pure(Monad[F2].pure(a))
+      def pure[A](a: A): Composed[A] = Monad[F].pure(Monad[G].pure(a))
 
       def flatMap[A, B](fa: Composed[A])(f: A => Composed[B]): Composed[B] = ???
       // !!! Problem! How do we write flatMap? Impossible to implement!!!
@@ -23,8 +24,9 @@ object ComposingMonads {
     }
   }
 
-  // We can compose the Monads if we know the higher kinded type of the inner Monad.
-  // If we replace F2 by a concrete Monad like Option, flatMap can be implemented
+  // We can compose the Monads if we know the higher kinded type of the inner Monad G.
+  // If we replace G by a concrete Monad like Option, flatMap can be implemented
+  //
   def composeFWithOption[F[_]: Monad] = {
 
     type Composed[A] = F[Option[A]]

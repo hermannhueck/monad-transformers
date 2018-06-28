@@ -73,15 +73,15 @@ object Applicative {
 
   def apply[F[_]: Applicative]: Applicative[F] = implicitly[Applicative[F]]
 
-  // default typeclass instances in implicit scope
-
   implicit def listApplicative: Applicative[List] = new Applicative[List] {
+
     override def pure[A](a: A): List[A] = List(a)
     override def ap[A, B](ff: List[A => B])(fa: List[A]): List[B] =
       for {f <- ff; a <- fa} yield f(a)
   }
 
   implicit def optionApplicative: Applicative[Option] = new Applicative[Option] {
+
     override def pure[A](a: A): Option[A] = Some(a)
     override def ap[A, B](ff: Option[A => B])(fa: Option[A]): Option[B] = (ff, fa) match {
       case (Some(f), Some(a)) => Option(f(a))
@@ -90,7 +90,9 @@ object Applicative {
   }
 
   implicit def futureApplicative: Applicative[Future] = new Applicative[Future] {
+
     import scala.concurrent.ExecutionContext.Implicits.global
+
     override def pure[A](a: A): Future[A] = Future.successful(a)
     override def ap[A, B](ff: Future[A => B])(fa: Future[A]): Future[B] =
       for {f <- ff; a <- fa} yield f(a)
@@ -99,5 +101,20 @@ object Applicative {
   implicit def idApplicative: Applicative[Id] = new Applicative[Id] {
     override def pure[A](a: A): Id[A] = a
     override def ap[A, B](ff: Id[A => B])(fa: Id[A]): Id[B] = ff(fa)
+  }
+
+  object ops {
+
+    implicit class ApplicativeF[F[_]: Applicative, A](ctx: F[A]) {
+
+      private val F = Applicative[F]
+
+      def ap[B](ff: F[A => B]): F[B] = F.ap(ff)(ctx)
+      def <*>[B](ff: F[A => B]): F[B] = ap(ff)
+
+      def map[B](f: A => B): F[B] = F.map(ctx)(f)
+      def fmap[B](f: A => B): F[B] = map(f)
+      def <|>[B](f: A => B): F[B] = map(f) // <$> is not allowed
+    }
   }
 }

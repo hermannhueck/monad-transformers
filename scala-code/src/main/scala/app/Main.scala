@@ -3,7 +3,7 @@ package app
 import scala.language.higherKinds
 
 import cats._, cats.data._, cats.implicits._
-//import mycats._, transform._, Functor.syntax._, Monad.syntax._
+// import mycats._, transform._, Functor.ops._, Monad.ops._
 
 object Main extends App {
 
@@ -80,12 +80,16 @@ object Main extends App {
   println("\n----- Pimping List[Option[A]]")
 
   implicit class PimpedListOptionA[A](list: List[Option[A]]) {
-    val functor = Functor[List] compose Functor[Option] // functor type: Functor[Lambda[X => List[Option[X]]]]
-    def map[B](f: A => B): List[Option[B]] = functor.map(list)(f)
-    def fmap[B](f: A => B): List[Option[B]] = functor.map(list)(f)
+    val composedFunctor = Functor[List] compose Functor[Option] // functor type: Functor[Lambda[X => List[Option[X]]]]
+    def map[B](f: A => B): List[Option[B]] = composedFunctor.map(list)(f)
+    def fmap[B](f: A => B): List[Option[B]] = composedFunctor.map(list)(f)
   }
+
   val loSquared5 = loi.fmap(x => x * x)
   println(loSquared5)
+
+  // val loSquared6 = loi.map(x => x * x) // doesn't compile !!!
+  // println(loSquared6)
 
   println("\n----- Creating a List[Int => Int]")
 
@@ -156,6 +160,9 @@ object Main extends App {
 
   val got = otli.getOrElse(42)
   println(got)
+
+  val dbl = otli.fold(42.0)(_.toDouble)
+  println(dbl)
 
   println("\n----- For comprehension with OptionT[List, Int] encapsulating List[Option[Int]]")
 

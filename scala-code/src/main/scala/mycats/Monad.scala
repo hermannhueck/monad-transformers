@@ -55,13 +55,15 @@ object Monad {
     override def flatMap[A, B](fa: Id[A])(f: A => Id[B]): Id[B] = f(fa)
   }
 
-  object syntax {
+  object ops {
 
-    implicit class PimpedF[F[_]: Monad, A](m: F[A]) {
+    implicit class MonadF[F[_]: Monad, A](ctx: F[A]) {
+
       private val F = implicitly[Monad[F]]
-      def pure[A](i: A): F[A] = F.pure(i)
-      def flatMap(f: A => F[A]): F[A] = F.flatMap(m)(f)
-      def map(f: A => A): F[A] = F.map(m)(f)
+
+      def pure(a: A): F[A] = F.pure(a)
+      def flatMap[B](f: A => F[B]): F[B] = F.flatMap(ctx)(f)
+      def >>=[B](f: A => F[B]): F[B] = F.flatMap(ctx)(f) // alias for Haskell's flatMap operator
     }
   }
 }

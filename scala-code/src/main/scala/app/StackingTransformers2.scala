@@ -13,27 +13,27 @@ object StackingTransformers2 extends App {
   type FutureEither[A] = EitherT[Future, String, A]
   type FutureEitherOption[A] = OptionT[FutureEither, A]
 
-  val futureEitherOr: FutureEitherOption[Int] =
+  val stackedResult: FutureEitherOption[Int] =
     for {
       a <- 10.pure[FutureEitherOption]
       b <- 32.pure[FutureEitherOption]
     } yield a + b
 
   Await.ready(
-    futureEitherOr.value.value,
+    stackedResult.value.value,
     3.seconds
   )
 
-  println(futureEitherOr) // OptionT(EitherT(Future(Success(Right(Some(42))))))
+  println(stackedResult) // OptionT(EitherT(Future(Success(Right(Some(42))))))
 
-  println(futureEitherOr.value) // EitherT(Future(Success(Right(Some(42)))))
+  println(stackedResult.value) // EitherT(Future(Success(Right(Some(42)))))
 
-  println(futureEitherOr.value.value) // Future(Success(Right(Some(42))))
+  println(stackedResult.value.value) // Future(Success(Right(Some(42))))
 
-  val future: Future[Either[String, Option[Int]]] = futureEitherOr.value.value
+  val future: Future[Either[String, Option[Int]]] = stackedResult.value.value
 
   val result: Either[String, Option[Int]] = Await.result(
-    futureEitherOr.value.value,
+    stackedResult.value.value,
     3.seconds
   ) // Right(Some(42))
 

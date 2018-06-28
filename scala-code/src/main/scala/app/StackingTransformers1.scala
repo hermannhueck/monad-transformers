@@ -20,7 +20,7 @@ object StackingTransformers1 extends App {
     future
   }
 
-  def futureEitherOption__[A](input: A): OptionT[EitherT[Future, String, ?], A] = {
+  def futureEitherOption__[A]: A => OptionT[EitherT[Future, String, ?], A] = { input =>
     val future: Future[Either[String, Option[A]]] = compute__(input)
     val eitherT: EitherT[Future, String, Option[A]] = EitherT(future)
     val optionT: OptionT[EitherT[Future, String, ?], A] = OptionT(eitherT)
@@ -32,27 +32,27 @@ object StackingTransformers1 extends App {
   def compute[A]: A => Future[Either[String, Option[A]]] =
     input => Future(Right(Some(input)))
 
-  def stackMonads[A](input: A): OptionT[EitherT[Future, String, ?], A] =
-    OptionT(EitherT(compute(input)))
+  def stackMonads[A]: A => OptionT[EitherT[Future, String, ?], A] =
+    input => OptionT(EitherT(compute(input)))
 
-  val wrappedTwice: OptionT[EitherT[Future, String, ?], Int] =
+  val stackedResult: OptionT[EitherT[Future, String, ?], Int] =
     for {
       a <- stackMonads(10)
       b <- stackMonads(32)
     } yield a + b
 
   Await.ready(
-    wrappedTwice.value.value,
+    stackedResult.value.value,
     3.seconds
   )
 
-  println(wrappedTwice) // OptionT(EitherT(Future(Success(Right(Some(42))))))
+  println(stackedResult) // OptionT(EitherT(Future(Success(Right(Some(42))))))
 
-  println(wrappedTwice.value) // EitherT(Future(Success(Right(Some(42)))))
+  println(stackedResult.value) // EitherT(Future(Success(Right(Some(42)))))
 
-  println(wrappedTwice.value.value) // Future(Success(Right(Some(42))))
+  println(stackedResult.value.value) // Future(Success(Right(Some(42))))
 
-  val future: Future[Either[String, Option[Int]]] = wrappedTwice.value.value
+  val future: Future[Either[String, Option[Int]]] = stackedResult.value.value
 
   val result: Either[String, Option[Int]] = Await.result(future, 3.seconds) // Right(Some(42))
 
