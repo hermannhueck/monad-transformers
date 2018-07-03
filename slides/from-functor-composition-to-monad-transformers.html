@@ -362,6 +362,8 @@ trait Functor[F[_]] {
   def fmap[A, B](fa: F[A])(f: A => B): F[B] =
     map(fa)(f)     // alias for map
 
+  def compose[G[_]: Functor]: Functor[Lambda[X => F[G[X]]]] = ???
+
   // ... other functions ...
 }
 ```
@@ -522,18 +524,17 @@ trait Applicative[F[_]] extends Functor[F] {
   // --- method implementations in terms of pure and ap
 
   def ap2[A, B, Z](ff: F[(A, B) => Z])(fa: F[A], fb: F[B]): F[Z] = ???
-  // ap3, ap4 ... ap22
 
   override def map[A, B](fa: F[A])(f: A => B): F[B] = ap(pure(f))(fa)
 
   def map2[A, B, Z](fa: F[A], fb: F[B])(f: (A, B) ⇒ Z): F[Z] = ???
-  // map3, map4 ... map22
 
   def product[A, B](fa: F[A], fb: F[B]): F[(A, B)] = ???
 
   def tuple2[A, B](fa: F[A], fb: F[B]): F[(A, B)] = product(fa, fb)
-  // tuple3, tuple4 ... tuple22
-  
+ 
+  def compose[G[_]: Applicative]: Applicative[Lambda[X => F[G[X]]]] = ???
+ 
   // ... other functions ...
 }
 ```
