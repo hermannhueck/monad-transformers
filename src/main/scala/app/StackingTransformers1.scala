@@ -57,4 +57,5 @@ object StackingTransformers1 extends App {
   val result: Either[String, Option[Int]] = Await.result(future, 3.seconds) // Right(Some(42))
 
   println(result)
+  result foreach { opt => opt foreach println }
 }

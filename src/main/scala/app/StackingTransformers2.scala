@@ -38,4 +38,5 @@ object StackingTransformers2 extends App {
   ) // Right(Some(42))
 
   println(result)
+  result foreach { opt => opt foreach println }
 }
