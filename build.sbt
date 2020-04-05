@@ -1,5 +1,5 @@
 name := "monad-transformers"
-version := "0.0.1-SNAPSHOT"
+version := "0.1.0"
 
 scalaVersion := "2.12.11"
 
@@ -15,6 +15,10 @@ scalacOptions ++= Seq(
   // "-Xfatal-warnings",     // turn compiler warnings into errors
 )
 
-libraryDependencies += "org.typelevel" %% "cats-core" % "1.1.0"
-
-addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.7")
+libraryDependencies ++= Seq(
+  "org.typelevel"  %% "cats-effect" % "2.1.2",
+  "org.scalatest"  %% "scalatest"   % "3.1.1" % Test,
+  "org.scalacheck" %% "scalacheck"  % "1.14.3" % Test,
+  compilerPlugin("org.typelevel" % "kind-projector"      % "0.11.0" cross CrossVersion.full),
+  compilerPlugin("com.olegpy"    %% "better-monadic-for" % "0.3.1")
+)
