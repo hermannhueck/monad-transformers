@@ -10,7 +10,7 @@ import scala.concurrent.duration._
 
 object StackingTransformers2 extends App {
 
-  type FutureEither[A] = EitherT[Future, String, A]
+  type FutureEither[A]       = EitherT[Future, String, A]
   type FutureEitherOption[A] = OptionT[FutureEither, A]
 
   val stackedResult: FutureEitherOption[Int] =
@@ -37,5 +37,5 @@ object StackingTransformers2 extends App {
     3.seconds
   ) // Right(Some(42))
 
-  println(result.right.get)
+  println(result)
 }

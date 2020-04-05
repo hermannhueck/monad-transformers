@@ -12,7 +12,6 @@ trait Applicative[F[_]] extends Any with Functor[F] { self =>
 
   def ap[A, B](ff: F[A => B])(fa: F[A]): F[B]
 
-
   // method implementations in terms of pure and ap
 
   override def map[A, B](fa: F[A])(f: A => B): F[B] = ap(pure(f))(fa)
@@ -20,19 +19,19 @@ trait Applicative[F[_]] extends Any with Functor[F] { self =>
   def <*>[A, B](ff: F[A => B])(fa: F[A]): F[B] = ap(ff)(fa) // alias for ap
 
   def ap2[A, B, Z](ff: F[(A, B) => Z])(fa: F[A], fb: F[B]): F[Z] = {
-    val ffBZ: F[B => Z] = ap(map(ff)(f => (a:A) => (b:B) => f(a, b)))(fa)
+    val ffBZ: F[B => Z] = ap(map(ff)(f => (a: A) => (b: B) => f(a, b)))(fa)
     ap(ffBZ)(fb)
   }
 
-  def map2[A, B, Z](fa: F[A], fb: F[B])(f: (A, B) ⇒ Z): F[Z] =
+  def map2[A, B, Z](fa: F[A], fb: F[B])(f: (A, B) => Z): F[Z] =
     ap(map(fa)(a => f(a, _: B)))(fb) // same as: ap(map(fb)(b => f((_: A), b)))(fa)
 
-  def map3[A, B, C, Z](fa: F[A], fb: F[B], fc: F[C])(f: (A, B, C) ⇒ Z): F[Z] =
-    ap(map2(fa, fb)((a, b) => (c:C) => f(a, b, c)))(fc)
+  def map3[A, B, C, Z](fa: F[A], fb: F[B], fc: F[C])(f: (A, B, C) => Z): F[Z] =
+    ap(map2(fa, fb)((a, b) => (c: C) => f(a, b, c)))(fc)
 
-  def map4[A, B, C, D, Z](fa: F[A], fb: F[B], fc: F[C], fd: F[D])(f: (A, B, C, D) ⇒ Z): F[Z] =
-    map2(tuple2(fa, fb), tuple2(fc, fd)) {case ((a, b), (c, d)) => f(a, b, c, d)}
-    // same as: ap(map3(fa, fb, fc)((a, b, c) => (d:D) => f(a, b, c, d)))(fd)
+  def map4[A, B, C, D, Z](fa: F[A], fb: F[B], fc: F[C], fd: F[D])(f: (A, B, C, D) => Z): F[Z] =
+    map2(tuple2(fa, fb), tuple2(fc, fd)) { case ((a, b), (c, d)) => f(a, b, c, d) }
+  // same as: ap(map3(fa, fb, fc)((a, b, c) => (d:D) => f(a, b, c, d)))(fd)
 
   def product[A, B](fa: F[A], fb: F[B]): F[(A, B)] = map2(fa, fb)((_, _))
 
@@ -42,7 +41,7 @@ trait Applicative[F[_]] extends Any with Functor[F] { self =>
 
   def flip[A, B](ff: F[A => B]): F[A] => F[B] = fa => ap(ff)(fa)
 
-/*
+  /*
   def compose[G[_] : Applicative]: Applicative[Lambda[X => F[G[X]]]] = new Applicative[Lambda[X => F[G[X]]]] {
     override def pure[A](a: A): F[G[A]] = self.pure(Applicative[G].pure(a))
     override def ap[A, B](ff: F[G[A => B]])(fga: F[G[A]]): F[G[B]] = {
@@ -50,7 +49,7 @@ trait Applicative[F[_]] extends Any with Functor[F] { self =>
       self.ap(fga2gb)(fga)
     }
   }
-*/
+   */
 
   def compose[G[_]: Applicative]: Applicative[Lambda[X => F[G[X]]]] =
     new Applicative.Composite[F, G] {
@@ -77,7 +76,7 @@ object Applicative {
 
     override def pure[A](a: A): List[A] = List(a)
     override def ap[A, B](ff: List[A => B])(fa: List[A]): List[B] =
-      for {f <- ff; a <- fa} yield f(a)
+      for { f <- ff; a <- fa } yield f(a)
   }
 
   implicit def optionApplicative: Applicative[Option] = new Applicative[Option] {
@@ -85,7 +84,7 @@ object Applicative {
     override def pure[A](a: A): Option[A] = Some(a)
     override def ap[A, B](ff: Option[A => B])(fa: Option[A]): Option[B] = (ff, fa) match {
       case (Some(f), Some(a)) => Option(f(a))
-      case (_, _) => Option.empty
+      case (_, _)             => Option.empty
     }
   }
 
@@ -95,11 +94,11 @@ object Applicative {
 
     override def pure[A](a: A): Future[A] = Future.successful(a)
     override def ap[A, B](ff: Future[A => B])(fa: Future[A]): Future[B] =
-      for {f <- ff; a <- fa} yield f(a)
+      for { f <- ff; a <- fa } yield f(a)
   }
 
   implicit def idApplicative: Applicative[Id] = new Applicative[Id] {
-    override def pure[A](a: A): Id[A] = a
+    override def pure[A](a: A): Id[A]                       = a
     override def ap[A, B](ff: Id[A => B])(fa: Id[A]): Id[B] = ff(fa)
   }
 
@@ -109,12 +108,12 @@ object Applicative {
 
       private val F = Applicative[F]
 
-      def ap[B](ff: F[A => B]): F[B] = F.ap(ff)(ctx)
+      def ap[B](ff: F[A => B]): F[B]  = F.ap(ff)(ctx)
       def <*>[B](ff: F[A => B]): F[B] = ap(ff)
 
-      def map[B](f: A => B): F[B] = F.map(ctx)(f)
+      def map[B](f: A => B): F[B]  = F.map(ctx)(f)
       def fmap[B](f: A => B): F[B] = map(f)
-      def <|>[B](f: A => B): F[B] = map(f) // <$> is not allowed
+      def <|>[B](f: A => B): F[B]  = map(f) // <$> is not allowed
     }
   }
 }
