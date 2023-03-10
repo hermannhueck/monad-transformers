@@ -27,9 +27,7 @@ object Main extends App {
       .flatMap { oi1 =>
         loi2
           .filter(_.isDefined)
-          .map { oi2 =>
-            Option(oi1.get * oi2.get)
-          }
+          .map { oi2 => Option(oi1.get * oi2.get) }
       }
   println(result2)
 
@@ -73,15 +71,15 @@ object Main extends App {
   println(loSquared2)
   val loSquared3 = (Functor[List] compose Functor[Option]).map(loi)(x => x * x)
   println(loSquared3)
-  val cf = Functor[List] compose Functor[Option]
+  val cf         = Functor[List] compose Functor[Option]
   val loSquared4 = cf.map(loi)(x => x * x)
   println(loSquared4)
 
   println("\n----- Pimping List[Option[A]]")
 
   implicit class PimpedListOptionA[A](list: List[Option[A]]) {
-    val composedFunctor = Functor[List] compose Functor[Option] // functor type: Functor[Lambda[X => List[Option[X]]]]
-    def map[B](f: A => B): List[Option[B]] = composedFunctor.map(list)(f)
+    val composedFunctor                     = Functor[List] compose Functor[Option] // functor type: Functor[Lambda[X => List[Option[X]]]]
+    def map[B](f: A => B): List[Option[B]]  = composedFunctor.map(list)(f)
     def fmap[B](f: A => B): List[Option[B]] = composedFunctor.map(list)(f)
   }
 
@@ -93,13 +91,13 @@ object Main extends App {
 
   println("\n----- Creating a List[Int => Int]")
 
-  val lf1_1 = List((x:Int) => x * 1, (x:Int) => x * 2, (x:Int) => x * 3)
-  val lf1_2 = List((_:Int) * 1, (_:Int) * 2, (_:Int) * 3)
+  val lf1_1 = List((x: Int) => x * 1, (x: Int) => x * 2, (x: Int) => x * 3)
+  val lf1_2 = List((_: Int) * 1, (_: Int) * 2, (_: Int) * 3)
 
   println("\n----- Creating a List[Int => Int] from List[Int]")
-  val lf1_3 = List(1, 2, 3).map(x => (y:Int) => y * x)
-  val lf1_4 = List(1, 2, 3).map(x => (_:Int) * x)
-  val lf1 = lf1_4
+  val lf1_3 = List(1, 2, 3).map(x => (y: Int) => y * x)
+  val lf1_4 = List(1, 2, 3).map(x => (_: Int) * x)
+  val lf1   = lf1_4
   println(lf1)
 
   println("\n----- Creating a List[Option[Int => Int]]")
@@ -147,7 +145,7 @@ object Main extends App {
 
   println("\n----- Mapping an OptionT[List, Int]")
 
-  val otliMapped = Monad[OptionT[List, ?]].map(otli) { _.toString + "!" }
+  val otliMapped = Monad[OptionT[List, *]].map(otli) { _.toString + "!" }
   println(otliMapped)
 
   println("\n----- OptionT.{isDefined isEmpty getOrElse}")

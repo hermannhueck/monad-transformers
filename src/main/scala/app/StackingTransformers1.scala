@@ -20,10 +20,10 @@ object StackingTransformers1 extends App {
     future
   }
 
-  def futureEitherOption__[A]: A => OptionT[EitherT[Future, String, ?], A] = { input =>
+  def futureEitherOption__[A]: A => OptionT[EitherT[Future, String, *], A] = { input =>
     val future: Future[Either[String, Option[A]]]       = compute__(input)
     val eitherT: EitherT[Future, String, Option[A]]     = EitherT(future)
-    val optionT: OptionT[EitherT[Future, String, ?], A] = OptionT(eitherT)
+    val optionT: OptionT[EitherT[Future, String, *], A] = OptionT(eitherT)
     optionT
   }
 
@@ -32,10 +32,10 @@ object StackingTransformers1 extends App {
   def compute[A]: A => Future[Either[String, Option[A]]] =
     input => Future(Right(Some(input)))
 
-  def stackMonads[A]: A => OptionT[EitherT[Future, String, ?], A] =
+  def stackMonads[A]: A => OptionT[EitherT[Future, String, *], A] =
     input => OptionT(EitherT(compute(input)))
 
-  val stackedResult: OptionT[EitherT[Future, String, ?], Int] =
+  val stackedResult: OptionT[EitherT[Future, String, *], Int] =
     for {
       a <- stackMonads(10)
       b <- stackMonads(32)

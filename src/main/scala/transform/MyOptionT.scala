@@ -14,7 +14,7 @@ final case class MyOptionT[F[_]: Monad, A](value: F[Option[A]]) {
   def flatMap[B](f: A => MyOptionT[F, B]): MyOptionT[F, B] =
     MyOptionT(
       F.flatMap(value) {
-        case None => F.pure(Option.empty[B])
+        case None    => F.pure(Option.empty[B])
         case Some(a) => f(a).value
       }
     )
@@ -23,7 +23,7 @@ final case class MyOptionT[F[_]: Monad, A](value: F[Option[A]]) {
     flatMap(a => MyOptionT(f(a)))
 
   def isDefined: F[Boolean] = F.map(value)(_.isDefined)
-  def isEmpty: F[Boolean] = F.map(value)(_.isEmpty)
+  def isEmpty: F[Boolean]   = F.map(value)(_.isEmpty)
 
   def getOrElse(default: => A): F[A] = F.map(value)(_.getOrElse(default))
 
@@ -32,8 +32,8 @@ final case class MyOptionT[F[_]: Monad, A](value: F[Option[A]]) {
 
 object MyOptionT {
 
-  implicit def monad[F[_]: Monad]: Monad[MyOptionT[F, ?]] = new Monad[MyOptionT[F, ?]] {
-    override def pure[A](a: A): MyOptionT[F, A] = MyOptionT(Monad[F].pure(Option(a)))
+  implicit def monad[F[_]: Monad]: Monad[MyOptionT[F, *]] = new Monad[MyOptionT[F, *]] {
+    override def pure[A](a: A): MyOptionT[F, A]                                               = MyOptionT(Monad[F].pure(Option(a)))
     override def flatMap[A, B](fa: MyOptionT[F, A])(f: A => MyOptionT[F, B]): MyOptionT[F, B] = fa flatMap f
   }
 }
@@ -80,4 +80,3 @@ object MyOptionTApp extends App {
 
   println("-----\n")
 }
-

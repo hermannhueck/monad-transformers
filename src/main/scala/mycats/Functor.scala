@@ -10,7 +10,6 @@ trait Functor[F[_]] extends Any { self =>
 
   def map[A, B](fa: F[A])(f: A => B): F[B]
 
-
   // method implementations in terms of map
 
   def fmap[A, B](fa: F[A])(f: A => B): F[B] = map(fa)(f) // alias for map
@@ -21,12 +20,12 @@ trait Functor[F[_]] extends Any { self =>
 
   def void[A](fa: F[A]): F[Unit] = as(fa, ())
 
-/*
+  /*
   def compose[G[_]: Functor]: Functor[Lambda[X => F[G[X]]]] = new Functor[Lambda[X => F[G[X]]]] {
     override def map[A, B](fga: F[G[A]])(f: A => B): F[G[B]] =
       self.map(fga)(ga => implicitly[Functor[G]].map(ga)(f))
   }
-*/
+   */
 
   def compose[G[_]: Functor]: Functor[Lambda[X => F[G[X]]]] =
     new Functor.Composite[F, G] {
@@ -65,7 +64,7 @@ object Functor {
     override def map[A, B](fa: Id[A])(f: A => B): Id[B] = f(fa)
   }
 
-  implicit def eitherFunctor[L]: Functor[Either[L, ?]] = new Functor[Either[L, ?]] {
+  implicit def eitherFunctor[L]: Functor[Either[L, *]] = new Functor[Either[L, *]] {
     override def map[R1, R2](fa: Either[L, R1])(f: R1 => R2): Either[L, R2] = fa map f
   }
 
@@ -75,7 +74,7 @@ object Functor {
 
       private val F = Functor[F]
 
-      def map[B](f: A => B): F[B] = F.map(ctx)(f)
+      def map[B](f: A => B): F[B]  = F.map(ctx)(f)
       def fmap[B](f: A => B): F[B] = map(f)
     }
   }

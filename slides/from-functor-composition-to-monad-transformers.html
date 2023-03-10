@@ -772,7 +772,7 @@ The outer Monad is left abstract. &nbsp; &nbsp; F[_]: Monad <br/>
 <br/>
 
 - OptionT is a generic case class which encapsulates an F[Option[A]].
-- F is a place holder for any Monad: List, Future, Either[A, ?], Id etc.
+- F is a place holder for any Monad: List, Future, Either[A, *], Id etc.
 - A Monad instance for OptionT (implementing pure and flatMap) must be provided implicitly in order to allow flatMapping over OptionT.
 <br/>
 <br/>
@@ -784,8 +784,8 @@ final case class OptionT[F[_]: Monad, A](value: F[Option[A]]) {
 
 object OptionT {
 
-  implicit def monad[F[_]]: Monad[F]: Monad[OptionT[F, ?]] =
-    new Monad[OptionT[F, ?]] {
+  implicit def monad[F[_]]: Monad[F]: Monad[OptionT[F, *]] =
+    new Monad[OptionT[F, *]] {
       override def pure[A](a: A) = ???
       override def flatMap[A, B](fa)(f) = ???
     }
@@ -861,7 +861,7 @@ otliFlatMappedF.value
 <br/>
 
 ```scala
-val otliMapped = Monad[OptionT[List, ?]].map(otli) { _.toString + "!" }
+val otliMapped = Monad[OptionT[List, *]].map(otli) { _.toString + "!" }
 // otliMapped: cats.data.OptionT[[+A]List[A],String] =
 //   OptionT(List(Some(1!), None, Some(2!), Some(3!)))
 
@@ -1004,9 +1004,9 @@ otfi.value
 
 ## Stacking 3 Monads with 2 transformers
 <br/>
-A database query should be async -> use a Future[???]<br/>
-Accessing the DB may give you an error -> Future[Either[String, ???]]<br/>
-The searched entity may not be there ->  Future[Either[String, Option[???]]]<br/>
+A database query should be async -> use a Future[??*]<br/>
+Accessing the DB may give you an error -> Future[Either[String, ??*]]<br/>
+The searched entity may not be there ->  Future[Either[String, Option[??*]]]<br/>
 <br/>
 With EitherT and OptionT we can stack the 3 Monads together.
 <br/>
@@ -1016,10 +1016,10 @@ With EitherT and OptionT we can stack the 3 Monads together.
 def compute[A]: A => Future[Either[String, Option[A]]] =
   input => Future(Right(Some(input)))
 
-def stackMonads[A]: A => OptionT[EitherT[Future, String, ?], A] =
+def stackMonads[A]: A => OptionT[EitherT[Future, String, *], A] =
   input => OptionT(EitherT(compute(input)))
 
-val stackedResult: OptionT[EitherT[Future, String, ?], Int] =
+val stackedResult: OptionT[EitherT[Future, String, *], Int] =
   for {
     a <- stackMonads(10)
     b <- stackMonads(32)
@@ -1278,8 +1278,8 @@ final case class OptionT[F[_]: Monad, A](value: F[Option[A]]) {
   def getOrElse(default: => A): F[A] = F.map(value)(_.getOrElse(default))
 }
 object OptionT {
-  implicit def monad[F[_]: Monad]: Monad[OptionT[F, ?]] =
-    new Monad[OptionT[F, ?]] {
+  implicit def monad[F[_]: Monad]: Monad[OptionT[F, *]] =
+    new Monad[OptionT[F, *]] {
       override def pure[A](a: A): OptionT[F, A] =
         OptionT(Monad[F].pure(Option(a)))
       override def flatMap[A, B](fa: OptionT[F, A])
