@@ -1,7 +1,7 @@
 name := "monad-transformers"
-version := "0.1.0"
+version := "0.2.0"
 
-scalaVersion := "2.13.1"
+scalaVersion := "2.13.10"
 
 scalacOptions ++= Seq(
   "-encoding",
@@ -16,9 +16,9 @@ scalacOptions ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.typelevel"  %% "cats-effect" % "2.1.2",
-  "org.scalatest"  %% "scalatest"   % "3.1.1" % Test,
-  "org.scalacheck" %% "scalacheck"  % "1.14.3" % Test,
-  compilerPlugin("org.typelevel" % "kind-projector"      % "0.11.0" cross CrossVersion.full),
+  "org.typelevel"  %% "cats-effect" % "3.4.8",
+  "org.scalatest"  %% "scalatest"   % "3.2.15" % Test,
+  "org.scalacheck" %% "scalacheck"  % "1.17.0" % Test,
+  compilerPlugin("org.typelevel" % "kind-projector"      % "0.13.2" cross CrossVersion.full),
   compilerPlugin("com.olegpy"    %% "better-monadic-for" % "0.3.1")
 )
