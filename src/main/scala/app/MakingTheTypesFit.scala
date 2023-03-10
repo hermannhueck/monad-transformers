@@ -12,8 +12,8 @@ object MakingTheTypesFit extends App {
   println("\n--- Making the types fit")
 
   type Nickname = String
-  type Name = String
-  type Age = Int
+  type Name     = String
+  type Age      = Int
 
   final case class User(name: Name, age: Age, nickname: Nickname)
 
@@ -32,14 +32,16 @@ object MakingTheTypesFit extends App {
     def getNameAge(nickname: Nickname): Future[Option[(Name, Age)]] =
       (for {
         user <- OptionT(getUser(nickname))
-        age <- OptionT(getAge(user).map(Option(_)))
+        age  <- OptionT(getAge(user).map(Option(_)))
         name <- OptionT(Future(getName(user)))
       } yield (name, age)).value
 
-    val userOrError = Await.result(
-      getNameAge("mickey"),
-      3.seconds
-    ).getOrElse("User not found")
+    val userOrError = Await
+      .result(
+        getNameAge("mickey"),
+        3.seconds
+      )
+      .getOrElse("User not found")
 
     println(userOrError)
   }
@@ -47,17 +49,26 @@ object MakingTheTypesFit extends App {
   {
     println("\n--- Using OptionT.liftF and OptionT.fromOption")
 
+    def getNameAgeWithTypes(nickname: Nickname): Future[Option[(Name, Age)]] =
+      (for {
+        user: User <- OptionT[Future, User](getUser(nickname))
+        age: Int   <- OptionT.liftF[Future, Int](getAge(user))
+        name: Name <- OptionT.fromOption[Future](getName(user))
+      } yield (name, age)).value
+
     def getNameAge(nickname: Nickname): Future[Option[(Name, Age)]] =
       (for {
         user <- OptionT(getUser(nickname))
-        age <- OptionT.liftF(getAge(user))
+        age  <- OptionT.liftF(getAge(user))
         name <- OptionT.fromOption(getName(user))
       } yield (name, age)).value
 
-    val userOrError = Await.result(
-      getNameAge("mickey"),
-      3.seconds
-    ).getOrElse("User not found")
+    val userOrError = Await
+      .result(
+        getNameAge("mickey"),
+        3.seconds
+      )
+      .getOrElse("User not found")
 
     println(userOrError)
   }
@@ -69,18 +80,20 @@ object MakingTheTypesFit extends App {
       for {
         maybeUser <- getUser(nickname)
         if maybeUser.isDefined
-        user = maybeUser.get
-        maybeAge <- getAge(user).map(Option(_))
+        user      = maybeUser.get
+        maybeAge  <- getAge(user).map(Option(_))
         maybeName <- Future(getName(user))
       } yield for {
         name <- maybeName
-        age <- maybeAge
+        age  <- maybeAge
       } yield (name, age)
 
-    val userOrError = Await.result(
-      getNameAge("mickey"),
-      3.seconds
-    ).getOrElse("User not found")
+    val userOrError = Await
+      .result(
+        getNameAge("mickey"),
+        3.seconds
+      )
+      .getOrElse("User not found")
 
     println(userOrError)
   }
